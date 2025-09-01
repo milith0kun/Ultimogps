@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rastreador GPS en Tiempo Real</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Para obtener una API key de Google Maps:
+         1. Ve a https://console.cloud.google.com/
+         2. Crea un proyecto o selecciona uno existente
+         3. Habilita la API de Maps JavaScript
+         4. Crea credenciales (API key)
+         5. Reemplaza 'YOUR_API_KEY' con tu API key real -->
+    <script src="config_environment.js"></script>
+    <script src="js/app.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌍 Rastreador GPS en Tiempo Real</h1>
+            <div class="developer-info">
+                <p><strong>Desarrollado por:</strong> Edmil Jampier Saire Bustamante - 174449</p>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-label">Estado:</span>
+                    <span id="status" class="status-value offline">Desconectado</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Última actualización:</span>
+                    <span id="last-update" class="status-value">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Coordenadas:</span>
+                    <span id="coordinates" class="status-value">--</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="map-container">
+                <div id="map"></div>
+                <div class="map-controls">
+                    <button id="center-btn" class="control-btn" title="Centrar en ubicación actual">
+                        🎯 Centrar
+                    </button>
+                    <button id="refresh-btn" class="control-btn" title="Actualizar ahora">
+                        🔄 Actualizar
+                    </button>
+                    <button id="toggle-auto" class="control-btn active" title="Activar/Desactivar actualización automática">
+                        ⏱️ Auto
+                    </button>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h3>📊 Información de Ubicación</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Latitud:</label>
+                        <span id="latitude">--</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Longitud:</label>
+                        <span id="longitude">--</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Timestamp del dispositivo:</label>
+                        <span id="device-time">--</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Timestamp del servidor:</label>
+                        <span id="server-time">--</span>
+                    </div>
+                    <div class="info-item">
+                        <label>IP de origen:</label>
+                        <span id="origin-ip">--</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Tiempo transcurrido:</label>
+                        <span id="elapsed-time">--</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="settings">
+                <label for="update-interval">Intervalo de actualización:</label>
+                <select id="update-interval">
+                    <option value="5000">5 segundos</option>
+                    <option value="10000">10 segundos</option>
+                    <option value="15000" selected>15 segundos</option>
+                    <option value="30000">30 segundos</option>
+                    <option value="60000">1 minuto</option>
+                </select>
+            </div>
+            <div class="footer-info">
+                <p>&copy; 2025 Sistema de Rastreo GPS - Desarrollado para monitoreo en tiempo real</p>
+                <p><strong>Desarrollador:</strong> Edmil Jampier Saire Bustamante - Código: 174449</p>
+                <p><strong>Configuración activa:</strong> <span id="active-config">Cargando...</span></p>
+            </div>
+        </footer>
+    </div>
+
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap">
+    </script>
+</body>
+</html>
