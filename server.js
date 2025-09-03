@@ -1,115 +1,194 @@
 const express = require('express');
+const WebSocket = require('ws');
+const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 
+// ConfiguraciÃ³n del servidor
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware para parsear JSON
+// Middleware
+app.use(cors());
 app.use(express.json());
+app.use(express.static('public')); // Servir archivos estÃ¡ticos
 
-// Servir archivos estáticos desde el directorio raíz
-app.use(express.static(__dirname));
+// Variable para almacenar la Ãºltima ubicaciÃ³n en memoria
+let ultimaUbicacion = null;
 
-// Ruta principal - servir index.html
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
+// Limpiar datos residuales al iniciar
+console.log('ðŸ§¹ Limpiando datos residuales...');
 
-// Endpoint para recibir datos de ubicación desde la app Android
-app.post('/api/location', (req, res) => {
-    try {
-        const { latitude, longitude, timestamp, deviceId } = req.body;
-        
-        // Validar datos recibidos
-        if (!latitude || !longitude || !timestamp || !deviceId) {
-            return res.status(400).json({ 
-                error: 'Faltan datos requeridos: latitude, longitude, timestamp, deviceId' 
-            });
-        }
+// Crear servidor HTTP
+const server = require('http').createServer(app);
 
-        // Crear objeto de ubicación
-        const locationData = {
-            latitude: parseFloat(latitude),
-            longitude: parseFloat(longitude),
-            timestamp: timestamp,
-            deviceId: deviceId,
-            receivedAt: new Date().toISOString()
-        };
+// Configurar WebSocket Server
+const wss = new WebSocket.Server({ server });
 
-        // Guardar en archivo JSON (para desarrollo local)
-        const dataFile = path.join(__dirname, 'api', 'posicion_ultima.json');
-        
-        // Crear directorio api si no existe
-        const apiDir = path.join(__dirname, 'api');
-        if (!fs.existsSync(apiDir)) {
-            fs.mkdirSync(apiDir, { recursive: true });
-        }
+// Lista de clientes WebSocket conectados
+const clientes = new Set();
 
-        // Escribir datos al archivo
-        fs.writeFileSync(dataFile, JSON.stringify(locationData, null, 2));
-
-        console.log('📍 Nueva ubicación recibida:', locationData);
-        
-        res.json({ 
-            success: true, 
-            message: 'Ubicación guardada correctamente',
-            data: locationData
-        });
-        
-    } catch (error) {
-        console.error('❌ Error al procesar ubicación:', error);
-        res.status(500).json({ 
-            error: 'Error interno del servidor',
-            details: error.message 
-        });
+// Manejar conexiones WebSocket
+wss.on('connection', (ws) => {
+    console.log('ðŸ”— Nuevo cliente WebSocket conectado');
+    clientes.add(ws);
+    
+    // Enviar la Ãºltima ubicaciÃ³n al cliente reciÃ©n conectado
+    if (ultimaUbicacion) {
+        ws.send(JSON.stringify({
+            tipo: 'ubicacion',
+            datos: ultimaUbicacion
+        }));
     }
-});
-
-// Endpoint para obtener la última ubicación
-app.get('/api/location', (req, res) => {
-    try {
-        const dataFile = path.join(__dirname, 'api', 'posicion_ultima.json');
-        
-        if (fs.existsSync(dataFile)) {
-            const data = fs.readFileSync(dataFile, 'utf8');
-            const locationData = JSON.parse(data);
-            res.json(locationData);
-        } else {
-            res.status(404).json({ 
-                error: 'No hay datos de ubicación disponibles' 
-            });
-        }
-    } catch (error) {
-        console.error('❌ Error al obtener ubicación:', error);
-        res.status(500).json({ 
-            error: 'Error al leer datos de ubicación',
-            details: error.message 
-        });
-    }
-});
-
-// Endpoint de salud del servidor
-app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'OK', 
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
+    
+    // Manejar desconexiÃ³n
+    ws.on('close', () => {
+        console.log('âŒ Cliente WebSocket desconectado');
+        clientes.delete(ws);
+    });
+    
+    // Manejar errores
+    ws.on('error', (error) => {
+        console.error('Error en WebSocket:', error);
+        clientes.delete(ws);
     });
 });
 
-// Iniciar servidor
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor GPS iniciado en http://localhost:${PORT}`);
-    console.log(`📱 Endpoint para Android: http://localhost:${PORT}/api/location`);
-    console.log(`🌐 Interfaz web: http://localhost:${PORT}`);
+// FunciÃ³n para enviar datos a todos los clientes WebSocket
+function enviarATodosLosClientes(datos) {
+    const mensaje = JSON.stringify({
+        tipo: 'ubicacion',
+        datos: datos
+    });
+    
+    clientes.forEach((cliente) => {
+        if (cliente.readyState === WebSocket.OPEN) {
+            cliente.send(mensaje);
+        }
+    });
+}
+
+// ENDPOINTS DE LA API
+
+// Endpoint para recibir ubicaciÃ³n desde la app Android
+app.post('/api/ubicacion', (req, res) => {
+    try {
+        const { lat, lon, accuracy, timestamp } = req.body;
+        
+        // InformaciÃ³n sobre el origen de la peticiÃ³n
+        const clienteInfo = {
+            ip: req.ip || req.connection.remoteAddress || req.socket.remoteAddress,
+            userAgent: req.get('User-Agent') || 'No especificado',
+            origen: req.get('Origin') || 'No especificado',
+            referer: req.get('Referer') || 'No especificado'
+        };
+        
+        // Filtrar peticiones que no sean de la aplicaciÃ³n Android
+        if (!clienteInfo.userAgent.includes('okhttp') && 
+            !clienteInfo.userAgent.includes('Android') && 
+            clienteInfo.userAgent === 'No especificado') {
+            console.log('ðŸš« PeticiÃ³n rechazada - No es de aplicaciÃ³n Android:', clienteInfo);
+            return res.status(403).json({
+                error: 'Solo se aceptan datos de la aplicaciÃ³n Android'
+            });
+        }
+        
+        // Validar datos recibidos
+        if (typeof lat !== 'number' || typeof lon !== 'number') {
+            return res.status(400).json({
+                error: 'Latitud y longitud deben ser nÃºmeros'
+            });
+        }
+        
+        // Crear objeto de ubicaciÃ³n
+        const nuevaUbicacion = {
+            lat: parseFloat(lat),
+            lon: parseFloat(lon),
+            accuracy: parseFloat(accuracy) || 0,
+            timestamp: timestamp || new Date().toISOString(),
+            recibido: new Date().toISOString()
+        };
+        
+        // Guardar como Ãºltima ubicaciÃ³n
+        ultimaUbicacion = nuevaUbicacion;
+        
+        // Enviar a todos los clientes WebSocket conectados
+        enviarATodosLosClientes(nuevaUbicacion);
+        
+        console.log('ðŸ“ Nueva ubicaciÃ³n recibida:', {
+            lat: nuevaUbicacion.lat,
+            lon: nuevaUbicacion.lon,
+            accuracy: nuevaUbicacion.accuracy,
+            clientes: clientes.size,
+            cliente: clienteInfo
+        });
+        
+        res.status(200).json({
+            mensaje: 'UbicaciÃ³n recibida correctamente',
+            ubicacion: nuevaUbicacion
+        });
+        
+    } catch (error) {
+        console.error('Error al procesar ubicaciÃ³n:', error);
+        res.status(500).json({
+            error: 'Error interno del servidor'
+        });
+    }
 });
 
-// Manejo de errores no capturados
-process.on('uncaughtException', (error) => {
-    console.error('❌ Error no capturado:', error);
+// Endpoint para obtener la Ãºltima ubicaciÃ³n
+app.get('/api/ubicacion/ultima', (req, res) => {
+    if (ultimaUbicacion) {
+        res.status(200).json(ultimaUbicacion);
+    } else {
+        res.status(404).json({
+            mensaje: 'No hay ubicaciones disponibles'
+        });
+    }
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Promesa rechazada no manejada:', reason);
+// Endpoint para obtener estadÃ­sticas del servidor
+app.get('/api/stats', (req, res) => {
+    res.json({
+        clientesConectados: clientes.size,
+        ultimaUbicacion: ultimaUbicacion ? {
+            timestamp: ultimaUbicacion.timestamp,
+            recibido: ultimaUbicacion.recibido
+        } : null,
+        servidor: {
+            puerto: PORT,
+            iniciado: new Date().toISOString()
+        }
+    });
+});
+
+// Servir la pÃ¡gina web principal
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Manejar rutas no encontradas
+app.use('*', (req, res) => {
+    res.status(404).json({
+        error: 'Endpoint no encontrado'
+    });
+});
+
+// Iniciar el servidor
+server.listen(PORT, '0.0.0.0', () => {
+    console.log('ðŸš€ Servidor GPS Tracking iniciado');
+    console.log(`ðŸ“¡ Servidor HTTP en puerto ${PORT}`);
+    console.log(`ðŸŒ WebSocket Server activo`);
+    console.log(`ðŸ”— Accede a http://localhost:${PORT} para ver el mapa`);
+    console.log(`ðŸ”— Accede a http://18.188.7.21:${PORT} para acceso desde AWS EC2`);
+    console.log('ðŸ“± Endpoint para Android: POST /api/ubicacion');
+    console.log('ðŸ—ºï¸  Endpoint para web: GET /api/ubicacion/ultima');
+    console.log('ðŸŒ IP PÃºblica AWS: 18.188.7.21');
+});
+
+// Manejar cierre graceful del servidor
+process.on('SIGTERM', () => {
+    console.log('ðŸ›‘ Cerrando servidor...');
+    server.close(() => {
+        console.log('âœ… Servidor cerrado correctamente');
+    });
 });

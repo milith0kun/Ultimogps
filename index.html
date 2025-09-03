@@ -3,108 +3,482 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rastreador GPS en Tiempo Real</title>
-    <link rel="stylesheet" href="css/styles.css">
-    <!-- Para obtener una API key de Google Maps:
-         1. Ve a https://console.cloud.google.com/
-         2. Crea un proyecto o selecciona uno existente
-         3. Habilita la API de Maps JavaScript
-         4. Crea credenciales (API key)
-         5. Reemplaza 'YOUR_API_KEY' con tu API key real -->
-    <script src="config_environment.js"></script>
-    <script src="js/app.js"></script>
+    <title>GPS Android - Tracking en Tiempo Real</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+          crossorigin=""/>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: #ffffff;
+            border-bottom: 1px solid #e5e5e5;
+            padding: 24px 0;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #1a1a1a;
+            letter-spacing: -0.025em;
+        }
+        
+        .header p {
+            margin: 8px 0 0 0;
+            font-size: 0.95rem;
+            color: #6b7280;
+            font-weight: 400;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        .status-bar {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            margin: 5px;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-connected {
+            background-color: #10b981;
+        }
+        
+        .status-disconnected {
+            background-color: #ef4444;
+        }
+        
+        .status-waiting {
+            background-color: #f59e0b;
+        }
+        
+        #map {
+            height: 500px;
+            width: 100%;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        
+        .info-panel {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 24px;
+        }
+        
+        .info-panel h3 {
+            margin: 0 0 16px 0;
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .info-item {
+            background: #f9fafb;
+            padding: 16px;
+            border-radius: 6px;
+            border-left: 3px solid #3b82f6;
+        }
+        
+        .info-label {
+            font-weight: 500;
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-bottom: 4px;
+        }
+        
+        .info-value {
+            font-size: 1rem;
+            color: #1f2937;
+            font-weight: 500;
+            word-break: break-all;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 32px;
+            padding: 24px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        
+        .developer-info {
+            color: #6b7280;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+        
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            
+            .header {
+                padding: 20px 0;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .header p {
+                font-size: 0.875rem;
+            }
+            
+            .status-bar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+            
+            .status-item {
+                margin: 0;
+            }
+            
+            #map {
+                height: 400px;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🌍 Rastreador GPS en Tiempo Real</h1>
-            <div class="developer-info">
-                <p><strong>Desarrollado por:</strong> Edmil Jampier Saire Bustamante - 174449</p>
-            </div>
-            <div class="status-bar">
-                <div class="status-item">
-                    <span class="status-label">Estado:</span>
-                    <span id="status" class="status-value offline">Desconectado</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Última actualización:</span>
-                    <span id="last-update" class="status-value">--</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Coordenadas:</span>
-                    <span id="coordinates" class="status-value">--</span>
-                </div>
-            </div>
-        </header>
-
-        <main>
-            <div class="map-container">
-                <div id="map"></div>
-                <div class="map-controls">
-                    <button id="center-btn" class="control-btn" title="Centrar en ubicación actual">
-                        🎯 Centrar
-                    </button>
-                    <button id="refresh-btn" class="control-btn" title="Actualizar ahora">
-                        🔄 Actualizar
-                    </button>
-                    <button id="toggle-auto" class="control-btn active" title="Activar/Desactivar actualización automática">
-                        ⏱️ Auto
-                    </button>
-                </div>
-            </div>
-
-            <div class="info-panel">
-                <h3>📊 Información de Ubicación</h3>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <label>Latitud:</label>
-                        <span id="latitude">--</span>
-                    </div>
-                    <div class="info-item">
-                        <label>Longitud:</label>
-                        <span id="longitude">--</span>
-                    </div>
-                    <div class="info-item">
-                        <label>Timestamp del dispositivo:</label>
-                        <span id="device-time">--</span>
-                    </div>
-                    <div class="info-item">
-                        <label>Timestamp del servidor:</label>
-                        <span id="server-time">--</span>
-                    </div>
-                    <div class="info-item">
-                        <label>IP de origen:</label>
-                        <span id="origin-ip">--</span>
-                    </div>
-                    <div class="info-item">
-                        <label>Tiempo transcurrido:</label>
-                        <span id="elapsed-time">--</span>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <footer>
-            <div class="settings">
-                <label for="update-interval">Intervalo de actualización:</label>
-                <select id="update-interval">
-                    <option value="5000">5 segundos</option>
-                    <option value="10000">10 segundos</option>
-                    <option value="15000" selected>15 segundos</option>
-                    <option value="30000">30 segundos</option>
-                    <option value="60000">1 minuto</option>
-                </select>
-            </div>
-            <div class="footer-info">
-                <p>&copy; 2025 Sistema de Rastreo GPS - Desarrollado para monitoreo en tiempo real</p>
-                <p><strong>Desarrollador:</strong> Edmil Jampier Saire Bustamante - Código: 174449</p>
-                <p><strong>Configuración activa:</strong> <span id="active-config">Cargando...</span></p>
-            </div>
-        </footer>
+    <div class="header">
+        <h1>GPS Android</h1>
+        <p>Seguimiento de ubicación en tiempo real</p>
     </div>
-
-    <script async defer
-        src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap">
+    
+    <div class="container">
+        <div class="status-bar">
+            <div class="status-item">
+                <div id="connectionStatus" class="status-indicator status-waiting"></div>
+                <span id="connectionText">Conectando...</span>
+            </div>
+            <div class="status-item">
+                <strong>Última actualización:</strong>
+                <span id="lastUpdate">Esperando datos...</span>
+            </div>
+        </div>
+        
+        <div id="map"></div>
+        
+        <div class="info-panel">
+            <h3>Información de Ubicación</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Latitud</div>
+                    <div class="info-value" id="latitud">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Longitud</div>
+                    <div class="info-value" id="longitud">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Precisión</div>
+                    <div class="info-value" id="precision">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Última actualización</div>
+                    <div class="info-value" id="timestamp">--</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalUpdates">0</div>
+                <div class="stat-label">Actualizaciones recibidas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgAccuracy">--</div>
+                <div class="stat-label">Precisión promedio</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="sessionTime">00:00</div>
+                <div class="stat-label">Tiempo de sesión</div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div class="developer-info">
+                <strong>Desarrollado por:</strong> Edmil Jampier Saire Bustamante<br>
+                <strong>Código:</strong> 174449
+            </div>
+        </div>
+    </div>
+    
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
+            crossorigin=""></script>
+    
+    <script>
+        // Variables globales
+        let map;
+        let marker;
+        let ws;
+        let reconnectInterval;
+        let sessionStartTime = new Date();
+        let totalUpdates = 0;
+        let accuracySum = 0;
+        let sessionTimer;
+        
+        // Inicializar el mapa
+        function initMap() {
+            // Crear mapa centrado en Cusco, Perú (coordenadas por defecto)
+            map = L.map('map').setView([-13.53195, -71.967463], 13);
+            
+            // Agregar capa de mapa de OpenStreetMap
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            console.log('Mapa inicializado');
+        }
+        
+        // Actualizar marcador en el mapa
+        function updateMarker(lat, lon, accuracy) {
+            const position = [lat, lon];
+            
+            if (marker) {
+                // Actualizar posición del marcador existente
+                marker.setLatLng(position);
+            } else {
+                // Crear nuevo marcador
+                marker = L.marker(position)
+                    .addTo(map)
+                    .bindPopup(`Ubicación actual<br>Precisión: ${accuracy}m`);
+            }
+            
+            // Centrar mapa en la nueva posición
+            map.setView(position, 15);
+            
+            // Agregar círculo de precisión
+            if (accuracy && accuracy > 0) {
+                L.circle(position, {
+                    radius: accuracy,
+                    color: '#3388ff',
+                    fillColor: '#3388ff',
+                    fillOpacity: 0.1
+                }).addTo(map);
+            }
+        }
+        
+        // Actualizar información en pantalla
+        function updateLocationInfo(data) {
+            document.getElementById('latitud').textContent = data.lat.toFixed(6);
+            document.getElementById('longitud').textContent = data.lon.toFixed(6);
+            document.getElementById('precision').textContent = data.accuracy ? `${data.accuracy.toFixed(1)}m` : 'N/A';
+            document.getElementById('timestamp').textContent = new Date(data.timestamp).toLocaleString('es-ES');
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('es-ES');
+            
+            // Actualizar estadísticas
+            updateStats(data.accuracy);
+        }
+        
+        // Actualizar estadísticas
+        function updateStats(accuracy) {
+            totalUpdates++;
+            document.getElementById('totalUpdates').textContent = totalUpdates;
+            
+            if (accuracy && accuracy > 0) {
+                accuracySum += accuracy;
+                const avgAccuracy = accuracySum / totalUpdates;
+                document.getElementById('avgAccuracy').textContent = `${avgAccuracy.toFixed(1)}m`;
+            }
+        }
+        
+        // Actualizar tiempo de sesión
+        function updateSessionTime() {
+            const now = new Date();
+            const elapsed = Math.floor((now - sessionStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            document.getElementById('sessionTime').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        // Conectar WebSocket
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function() {
+                    console.log('WebSocket conectado');
+                    updateConnectionStatus('connected', 'Conectado');
+                    
+                    // Limpiar intervalo de reconexión
+                    if (reconnectInterval) {
+                        clearInterval(reconnectInterval);
+                        reconnectInterval = null;
+                    }
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const message = JSON.parse(event.data);
+                        
+                        if (message.tipo === 'ubicacion' && message.datos) {
+                            const data = message.datos;
+                            console.log('Nueva ubicación recibida:', data);
+                            
+                            // Actualizar mapa y información
+                            updateMarker(data.lat, data.lon, data.accuracy);
+                            updateLocationInfo(data);
+                        }
+                    } catch (error) {
+                        console.error('Error al procesar mensaje WebSocket:', error);
+                    }
+                };
+                
+                ws.onclose = function() {
+                    console.log('WebSocket desconectado');
+                    updateConnectionStatus('disconnected', 'Desconectado');
+                    
+                    // Intentar reconectar cada 5 segundos
+                    if (!reconnectInterval) {
+                        reconnectInterval = setInterval(() => {
+                            console.log('Intentando reconectar...');
+                            connectWebSocket();
+                        }, 5000);
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    console.error('Error en WebSocket:', error);
+                    updateConnectionStatus('disconnected', 'Error de conexión');
+                };
+                
+            } catch (error) {
+                console.error('Error al crear WebSocket:', error);
+                updateConnectionStatus('disconnected', 'Error de conexión');
+            }
+        }
+        
+        // Actualizar estado de conexión
+        function updateConnectionStatus(status, text) {
+            const indicator = document.getElementById('connectionStatus');
+            const textElement = document.getElementById('connectionText');
+            
+            indicator.className = `status-indicator status-${status}`;
+            textElement.textContent = text;
+        }
+        
+        // Cargar última ubicación desde la API
+        async function loadLastLocation() {
+            try {
+                const response = await fetch('/api/ubicacion/ultima');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Última ubicación cargada:', data);
+                    
+                    updateMarker(data.lat, data.lon, data.accuracy);
+                    updateLocationInfo(data);
+                } else {
+                    console.log('No hay ubicaciones previas disponibles');
+                }
+            } catch (error) {
+                console.error('Error al cargar última ubicación:', error);
+            }
+        }
+        
+        // Inicializar aplicación
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Iniciando aplicación GPS Android');
+            
+            // Inicializar mapa
+            initMap();
+            
+            // Cargar última ubicación
+            loadLastLocation();
+            
+            // Conectar WebSocket
+            connectWebSocket();
+            
+            // Iniciar timer de sesión
+            sessionTimer = setInterval(updateSessionTime, 1000);
+        });
     </script>
 </body>
 </html>
