@@ -36,10 +36,18 @@ const clientes = new Set();
 
 // Manejar conexiones WebSocket
 wss.on('connection', (ws) => {
-    console.log('ðŸ”— Nuevo cliente WebSocket conectado');
+    console.log('🔗 Nuevo cliente WebSocket conectado');
     clientes.add(ws);
     
-    // Enviar la Ãºltima ubicaciÃ³n al cliente reciÃ©n conectado
+    // Enviar la lista completa de dispositivos al cliente recién conectado
+    if (dispositivos.size > 0) {
+        ws.send(JSON.stringify({
+            tipo: 'dispositivos',
+            datos: Array.from(dispositivos.values())
+        }));
+    }
+    
+    // Enviar la última ubicación al cliente recién conectado (compatibilidad)
     if (ultimaUbicacion) {
         ws.send(JSON.stringify({
             tipo: 'ubicacion',
@@ -47,9 +55,9 @@ wss.on('connection', (ws) => {
         }));
     }
     
-    // Manejar desconexiÃ³n
+    // Manejar desconexión
     ws.on('close', () => {
-        console.log('âŒ Cliente WebSocket desconectado');
+        console.log('❌ Cliente WebSocket desconectado');
         clientes.delete(ws);
     });
     
