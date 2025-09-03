@@ -85,36 +85,127 @@
         
         .device-controls {
             display: flex;
+            flex-wrap: wrap;
             gap: 8px;
             margin-bottom: 15px;
         }
         
         .btn {
-            padding: 8px 12px;
+            padding: 10px 16px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 500;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 100px;
+            text-align: center;
+        }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
         .btn-primary {
-            background: #007bff;
+            background: linear-gradient(135deg, #007bff, #0056b3);
             color: white;
         }
         
         .btn-primary:hover {
-            background: #0056b3;
+            background: linear-gradient(135deg, #0056b3, #004085);
         }
         
         .btn-secondary {
-            background: #6c757d;
+            background: linear-gradient(135deg, #6c757d, #545b62);
             color: white;
         }
         
         .btn-secondary:hover {
-            background: #545b62;
+            background: linear-gradient(135deg, #545b62, #3d4142);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
+            color: #212529;
+            font-weight: 600;
+        }
+        
+        .btn-warning:hover {
+            background: linear-gradient(135deg, #e0a800, #c69500);
+            color: #000;
+        }
+        
+        .precision-control {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            margin-top: 10px;
+        }
+        
+        .precision-control label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+        
+        .precision-control input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #dee2e6;
+            outline: none;
+            margin: 8px 0;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        .precision-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+        }
+        
+        .precision-control input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+        }
+        
+        .precision-control input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .precision-control span {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #007bff;
+            background: #e7f3ff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            min-width: 40px;
+            text-align: center;
         }
         
         .device-list {
@@ -391,10 +482,11 @@
                 <div class="device-controls">
                     <button id="toggleAll" class="btn btn-primary">Mostrar Todos</button>
                     <button id="centerAll" class="btn btn-secondary">Centrar Vista</button>
-                    <div class="precision-control" style="margin-top: 10px;">
-                        <label for="precisionThreshold" style="font-size: 12px; color: #666;">🎯 Umbral de Precisión:</label>
-                        <input type="range" id="precisionThreshold" min="10" max="200" value="100" step="10" style="width: 100%; margin: 5px 0;">
-                        <span id="precisionValue" style="font-size: 12px; color: #333;">100m</span>
+                    <button id="toggleTrails" class="btn btn-warning" onclick="toggleTodosRecorridos()">Mostrar Recorridos</button>
+                    <div class="precision-control">
+                        <label for="precisionThreshold">🎯 Umbral de Precisión:</label>
+                        <input type="range" id="precisionThreshold" min="10" max="200" value="100" step="10">
+                        <span id="precisionValue">100m</span>
                     </div>
                 </div>
                 <div id="deviceList" class="device-list">
@@ -470,7 +562,10 @@
         let dispositivos = new Map(); // Almacena información de dispositivos
         let marcadores = new Map(); // Almacena marcadores por deviceId
         let circulos = new Map(); // Almacena círculos de precisión por deviceId
+        let recorridos = new Map(); // Mapa de polylines de recorrido
+        let historialUbicaciones = new Map(); // Historial de ubicaciones por dispositivo
         let dispositivosVisibles = new Set(); // Dispositivos actualmente visibles
+        let recorridosVisibles = new Set(); // Set de recorridos visibles
         let coloresDispositivos = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
         let contadorColores = 0;
         
@@ -538,14 +633,18 @@
                 })
             });
             
-            // Crear círculo de precisión
-            const circle = L.circle(position, {
-                radius: accuracy,
-                color: dispositivo.color,
-                fillColor: dispositivo.color,
-                fillOpacity: 0.1,
-                weight: 2
-            });
+            // Crear círculo de precisión solo si la precisión es <= 10 metros
+            let circle = null;
+            if (accuracy <= 10) {
+                circle = L.circle(position, {
+                    radius: Math.max(accuracy * 0.5, 3), // Radio mínimo de 3m, máximo según precisión
+                    color: dispositivo.color,
+                    fillColor: dispositivo.color,
+                    fillOpacity: 0.08,
+                    weight: 1.5,
+                    dashArray: '3, 3' // Línea punteada para mejor visualización
+                });
+            }
             
             // Determinar calidad de señal basada en precisión
             let calidadSenal = 'Excelente';
@@ -588,17 +687,78 @@
             
             marker.bindPopup(popupContent);
             
+            // Agregar al historial y actualizar recorrido
+            agregarUbicacionHistorial(deviceId, ubicacion);
+            
             // Guardar referencias
             marcadores.set(deviceId, marker);
-            circulos.set(deviceId, circle);
+            if (circle) {
+                circulos.set(deviceId, circle);
+            }
             
             // Añadir al mapa si el dispositivo está visible
             if (dispositivosVisibles.has(deviceId)) {
                 marker.addTo(map);
-                circle.addTo(map);
+                if (circle) {
+                    circle.addTo(map);
+                }
             }
             
             return { marker, circle };
+        }
+        
+        // Función para agregar ubicación al historial y actualizar recorrido
+        function agregarUbicacionHistorial(deviceId, ubicacion) {
+            if (!historialUbicaciones.has(deviceId)) {
+                historialUbicaciones.set(deviceId, []);
+            }
+            
+            const historial = historialUbicaciones.get(deviceId);
+            const lat = parseFloat(ubicacion.lat);
+            const lon = parseFloat(ubicacion.lon);
+            
+            // Agregar nueva ubicación al historial
+            historial.push([lat, lon]);
+            
+            // Mantener solo las últimas 100 ubicaciones para evitar sobrecarga
+            if (historial.length > 100) {
+                historial.shift();
+            }
+            
+            // Actualizar polyline de recorrido
+            actualizarRecorrido(deviceId);
+        }
+        
+        // Función para crear o actualizar polyline de recorrido
+        function actualizarRecorrido(deviceId) {
+            const historial = historialUbicaciones.get(deviceId);
+            const dispositivo = dispositivos.get(deviceId);
+            
+            if (!historial || historial.length < 2 || !dispositivo) {
+                return;
+            }
+            
+            // Remover polyline existente si existe
+            const recorridoExistente = recorridos.get(deviceId);
+            if (recorridoExistente) {
+                map.removeLayer(recorridoExistente);
+            }
+            
+            // Crear nueva polyline
+            const polyline = L.polyline(historial, {
+                color: dispositivo.color,
+                weight: 3,
+                opacity: 0.7,
+                smoothFactor: 1
+            });
+            
+            // Guardar referencia
+            recorridos.set(deviceId, polyline);
+            
+            // Agregar al mapa si el recorrido está visible
+            if (recorridosVisibles.has(deviceId)) {
+                polyline.addTo(map);
+            }
         }
         
         // Función para actualizar marcador existente
@@ -616,10 +776,13 @@
             const accuracy = parseFloat(ubicacion.accuracy) || 0;
             const position = [lat, lon];
             
+            // Agregar al historial y actualizar recorrido
+            agregarUbicacionHistorial(deviceId, ubicacion);
+            
             // Actualizar posiciones
             marker.setLatLng(position);
             circle.setLatLng(position);
-            circle.setRadius(accuracy);
+            circle.setRadius(Math.min(accuracy * 0.3, 15)); // Aplicar la misma reducción de tamaño
             
             // Determinar calidad de señal basada en precisión
             let calidadSenal = 'Excelente';
@@ -986,20 +1149,52 @@
         function toggleDispositivo(deviceId) {
             const marker = marcadores.get(deviceId);
             const circle = circulos.get(deviceId);
+            const recorrido = recorridos.get(deviceId);
             
             if (dispositivosVisibles.has(deviceId)) {
                 // Ocultar dispositivo
                 dispositivosVisibles.delete(deviceId);
                 if (marker) map.removeLayer(marker);
                 if (circle) map.removeLayer(circle);
+                // También ocultar recorrido si está visible
+                if (recorrido && recorridosVisibles.has(deviceId)) {
+                    map.removeLayer(recorrido);
+                }
             } else {
                 // Mostrar dispositivo
                 dispositivosVisibles.add(deviceId);
                 if (marker) marker.addTo(map);
                 if (circle) circle.addTo(map);
+                // Mostrar recorrido si los recorridos están habilitados
+                if (recorrido && recorridosVisibles.has(deviceId)) {
+                    recorrido.addTo(map);
+                }
             }
             
             actualizarListaDispositivos();
+        }
+        
+        // Función para mostrar/ocultar todos los recorridos
+        function toggleTodosRecorridos() {
+            const button = document.getElementById('toggleTrails');
+            const todosRecorridosVisibles = recorridosVisibles.size === dispositivos.size;
+            
+            if (todosRecorridosVisibles) {
+                // Ocultar todos los recorridos
+                recorridosVisibles.clear();
+                recorridos.forEach(recorrido => map.removeLayer(recorrido));
+                button.textContent = 'Mostrar Recorridos';
+            } else {
+                // Mostrar todos los recorridos
+                dispositivos.forEach((dispositivo, deviceId) => {
+                    recorridosVisibles.add(deviceId);
+                    const recorrido = recorridos.get(deviceId);
+                    if (recorrido && dispositivosVisibles.has(deviceId)) {
+                        recorrido.addTo(map);
+                    }
+                });
+                button.textContent = 'Ocultar Recorridos';
+            }
         }
         
         // Función para centrar el mapa en un dispositivo específico
@@ -1164,6 +1359,27 @@
             actualizarListaDispositivos();
         }
         
+        // Suprimir errores de extensiones del navegador
+        window.addEventListener('error', function(event) {
+            // Filtrar errores de content.js y otros scripts de extensiones
+            if (event.filename && (event.filename.includes('content.js') || 
+                                 event.filename.includes('extension') ||
+                                 event.filename.includes('chrome-extension') ||
+                                 event.filename.includes('moz-extension'))) {
+                event.preventDefault();
+                return true; // Prevenir que se muestre en consola
+            }
+        });
+        
+        // Suprimir errores no capturados de extensiones
+        window.addEventListener('unhandledrejection', function(event) {
+            if (event.reason && event.reason.stack && 
+                (event.reason.stack.includes('content.js') ||
+                 event.reason.stack.includes('extension'))) {
+                event.preventDefault();
+            }
+        });
+
         // Inicializar aplicación
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Iniciando aplicación GPS Android');
