@@ -3,9 +3,9 @@ const WebSocket = require('ws');
 const cors = require('cors');
 const path = require('path');
 
-// ConfiguraciÃ³n del servidor
+// Configuración del servidor
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 80;
 
 // Middleware
 app.use(cors());
@@ -175,11 +175,11 @@ app.use('*', (req, res) => {
 
 // Iniciar el servidor
 server.listen(PORT, '0.0.0.0', () => {
-    console.log('ðŸš€ Servidor GPS Tracking iniciado');
-    console.log(`ðŸ“¡ Servidor HTTP en puerto ${PORT}`);
-    console.log(`ðŸŒ WebSocket Server activo en puerto ${PORT}`);
-    console.log(`ðŸ”— Accede a http://localhost:${PORT} para ver el mapa`);
-    console.log(`ðŸ”— Accede a http://18.188.7.21:${PORT} para acceso desde AWS EC2`);
+    console.log('🚀 Servidor GPS Tracking iniciado');
+    console.log(`📡 Servidor HTTP en puerto ${PORT}`);
+    console.log(`🌐 WebSocket Server activo en puerto ${PORT}`);
+    console.log(`🔗 Accede a http://localhost${PORT === 80 ? '' : ':' + PORT} para ver el mapa`);
+    console.log(`🔗 Accede a http://18.188.7.21${PORT === 80 ? '' : ':' + PORT} para acceso desde AWS EC2`);
     console.log('ðŸ“± Endpoint para Android: POST /api/ubicacion');
     console.log('ðŸ—ºï¸  Endpoint para web: GET /api/ubicacion/ultima');
     console.log('ðŸŒ IP PÃºblica AWS: 18.188.7.21');
