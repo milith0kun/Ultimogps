@@ -12,8 +12,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname)); // Servir archivos estáticos desde la raíz del proyecto
 
-// Variable para almacenar la Ãºltima ubicaciÃ³n en memoria
-let ultimaUbicacion = null;
+// Estructura para almacenar múltiples dispositivos y sus ubicaciones
+let dispositivos = new Map(); // Map<deviceId, {info, ultimaUbicacion}>
+let ultimaUbicacion = null; // Mantener compatibilidad con versión anterior
+
+// Colores predefinidos para dispositivos
+const coloresDispositivos = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+];
 
 // Limpiar datos residuales al iniciar
 console.log('ðŸ§¹ Limpiando datos residuales...');
@@ -53,10 +60,10 @@ wss.on('connection', (ws) => {
     });
 });
 
-// FunciÃ³n para enviar datos a todos los clientes WebSocket
-function enviarATodosLosClientes(datos) {
+// Función para enviar datos a todos los clientes WebSocket
+function enviarATodosLosClientes(datos, tipo = 'ubicacion') {
     const mensaje = JSON.stringify({
-        tipo: 'ubicacion',
+        tipo: tipo,
         datos: datos
     });
     
@@ -67,12 +74,34 @@ function enviarATodosLosClientes(datos) {
     });
 }
 
+// Función para obtener o crear un dispositivo
+function obtenerOCrearDispositivo(deviceId, userAgent) {
+    if (!dispositivos.has(deviceId)) {
+        const nuevoDispositivo = {
+            id: deviceId,
+            nombre: `Dispositivo ${deviceId}`,
+            color: coloresDispositivos[dispositivos.size % coloresDispositivos.length],
+            userAgent: userAgent,
+            creado: new Date().toISOString(),
+            activo: true,
+            ultimaUbicacion: null
+        };
+        dispositivos.set(deviceId, nuevoDispositivo);
+        
+        // Notificar a todos los clientes sobre el nuevo dispositivo
+        enviarATodosLosClientes(Array.from(dispositivos.values()), 'dispositivos');
+        
+        console.log(`📱 Nuevo dispositivo registrado: ${deviceId}`);
+    }
+    return dispositivos.get(deviceId);
+}
+
 // ENDPOINTS DE LA API
 
-// Endpoint para recibir ubicaciÃ³n desde la app Android
+// Endpoint para recibir ubicación desde la app Android
 app.post('/api/ubicacion', (req, res) => {
     try {
-        const { lat, lon, accuracy, timestamp } = req.body;
+        const { lat, lon, accuracy, timestamp, deviceId } = req.body;
         
         // InformaciÃ³n sobre el origen de la peticiÃ³n
         const clienteInfo = {
@@ -99,20 +128,37 @@ app.post('/api/ubicacion', (req, res) => {
             });
         }
         
-        // Crear objeto de ubicaciÃ³n
+        // Obtener o crear dispositivo (usar IP como deviceId por defecto si no se proporciona)
+        const dispositivoId = deviceId || clienteInfo.ip;
+        const dispositivo = obtenerOCrearDispositivo(dispositivoId, clienteInfo.userAgent);
+        
+        // Crear objeto de ubicación
         const nuevaUbicacion = {
             lat: parseFloat(lat),
             lon: parseFloat(lon),
             accuracy: parseFloat(accuracy) || 0,
             timestamp: timestamp || new Date().toISOString(),
-            recibido: new Date().toISOString()
+            recibido: new Date().toISOString(),
+            deviceId: dispositivoId
         };
         
-        // Guardar como Ãºltima ubicaciÃ³n
+        // Actualizar ubicación del dispositivo
+        dispositivo.ultimaUbicacion = nuevaUbicacion;
+        dispositivo.ultimaActividad = new Date().toISOString();
+        
+        // Mantener compatibilidad: guardar como última ubicación general
         ultimaUbicacion = nuevaUbicacion;
         
-        // Enviar a todos los clientes WebSocket conectados
-        enviarATodosLosClientes(nuevaUbicacion);
+        // Enviar ubicación específica del dispositivo a todos los clientes
+        enviarATodosLosClientes({
+            deviceId: dispositivoId,
+            ubicacion: nuevaUbicacion,
+            dispositivo: {
+                id: dispositivo.id,
+                nombre: dispositivo.nombre,
+                color: dispositivo.color
+            }
+        }, 'ubicacion_dispositivo');
         
         console.log('ðŸ“ Nueva ubicaciÃ³n recibida:', {
             lat: nuevaUbicacion.lat,
@@ -146,13 +192,81 @@ app.get('/api/ubicacion/ultima', (req, res) => {
     }
 });
 
+// Endpoint para obtener todos los dispositivos
+app.get('/api/dispositivos', (req, res) => {
+    const dispositivosArray = Array.from(dispositivos.values());
+    res.json({
+        dispositivos: dispositivosArray,
+        total: dispositivosArray.length
+    });
+});
+
+// Endpoint para obtener un dispositivo específico
+app.get('/api/dispositivos/:deviceId', (req, res) => {
+    const { deviceId } = req.params;
+    const dispositivo = dispositivos.get(deviceId);
+    
+    if (dispositivo) {
+        res.json(dispositivo);
+    } else {
+        res.status(404).json({
+            error: 'Dispositivo no encontrado'
+        });
+    }
+});
+
+// Endpoint para actualizar información de un dispositivo
+app.put('/api/dispositivos/:deviceId', (req, res) => {
+    const { deviceId } = req.params;
+    const { nombre, activo } = req.body;
+    const dispositivo = dispositivos.get(deviceId);
+    
+    if (dispositivo) {
+        if (nombre) dispositivo.nombre = nombre;
+        if (typeof activo === 'boolean') dispositivo.activo = activo;
+        
+        // Notificar cambios a todos los clientes
+        enviarATodosLosClientes(Array.from(dispositivos.values()), 'dispositivos');
+        
+        res.json(dispositivo);
+    } else {
+        res.status(404).json({
+            error: 'Dispositivo no encontrado'
+        });
+    }
+});
+
+// Endpoint para obtener ubicaciones de todos los dispositivos activos
+app.get('/api/ubicaciones', (req, res) => {
+    const ubicaciones = [];
+    
+    dispositivos.forEach((dispositivo) => {
+        if (dispositivo.activo && dispositivo.ultimaUbicacion) {
+            ubicaciones.push({
+                deviceId: dispositivo.id,
+                nombre: dispositivo.nombre,
+                color: dispositivo.color,
+                ubicacion: dispositivo.ultimaUbicacion
+            });
+        }
+    });
+    
+    res.json({
+        ubicaciones: ubicaciones,
+        total: ubicaciones.length
+    });
+});
+
 // Endpoint para obtener estadÃ­sticas del servidor
 app.get('/api/stats', (req, res) => {
     res.json({
         clientesConectados: clientes.size,
+        totalDispositivos: dispositivos.size,
+        dispositivosActivos: Array.from(dispositivos.values()).filter(d => d.activo).length,
         ultimaUbicacion: ultimaUbicacion ? {
             timestamp: ultimaUbicacion.timestamp,
-            recibido: ultimaUbicacion.recibido
+            recibido: ultimaUbicacion.recibido,
+            deviceId: ultimaUbicacion.deviceId
         } : null,
         servidor: {
             puerto: PORT,
@@ -160,6 +274,10 @@ app.get('/api/stats', (req, res) => {
         }
     });
 });
+
+
+
+
 
 // Servir la pÃ¡gina web principal
 app.get('/', (req, res) => {
@@ -179,10 +297,10 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`📡 Servidor HTTP en puerto ${PORT}`);
     console.log(`🌐 WebSocket Server activo en puerto ${PORT}`);
     console.log(`🔗 Accede a http://localhost${PORT === 80 ? '' : ':' + PORT} para ver el mapa`);
-    console.log(`🔗 Accede a http://18.188.7.21${PORT === 80 ? '' : ':' + PORT} para acceso desde AWS EC2`);
+    console.log(`🔗 Accede a http://3.19.27.29${PORT === 80 ? '' : ':' + PORT} para acceso desde AWS EC2`);
     console.log('ðŸ“± Endpoint para Android: POST /api/ubicacion');
     console.log('ðŸ—ºï¸  Endpoint para web: GET /api/ubicacion/ultima');
-    console.log('ðŸŒ IP PÃºblica AWS: 18.188.7.21');
+    console.log('ðŸŒ IP PÃºblica AWS: 3.19.27.29');
 });
 
 // Manejar cierre graceful del servidor
