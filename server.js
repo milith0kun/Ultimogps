@@ -22,6 +22,12 @@ const coloresDispositivos = [
     '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
 ];
 
+// Configuración de precisión
+let PRECISION_THRESHOLD = 100; // metros (configurable)
+const MAX_LOCATIONS_FOR_AVERAGE = 5; // número máximo de ubicaciones para promedio
+const MIN_PRECISION_THRESHOLD = 10; // mínimo umbral permitido
+const MAX_PRECISION_THRESHOLD = 500; // máximo umbral permitido
+
 // Limpiar datos residuales al iniciar
 console.log('ðŸ§¹ Limpiando datos residuales...');
 
@@ -132,7 +138,18 @@ app.post('/api/ubicacion', (req, res) => {
         // Validar datos recibidos
         if (typeof lat !== 'number' || typeof lon !== 'number') {
             return res.status(400).json({
-                error: 'Latitud y longitud deben ser nÃºmeros'
+                error: 'Latitud y longitud deben ser números'
+            });
+        }
+        
+        // Validar precisión - rechazar ubicaciones muy imprecisas
+        const precisionRecibida = parseFloat(accuracy) || 999;
+        const UMBRAL_PRECISION_MAXIMA = 100; // metros
+        
+        if (precisionRecibida > UMBRAL_PRECISION_MAXIMA) {
+            console.log(`🎯 Ubicación rechazada por baja precisión: ${precisionRecibida}m (umbral: ${UMBRAL_PRECISION_MAXIMA}m)`);
+            return res.status(400).json({
+                error: `Precisión insuficiente: ${precisionRecibida}m (máximo permitido: ${UMBRAL_PRECISION_MAXIMA}m)`
             });
         }
         
@@ -144,11 +161,30 @@ app.post('/api/ubicacion', (req, res) => {
         const nuevaUbicacion = {
             lat: parseFloat(lat),
             lon: parseFloat(lon),
-            accuracy: parseFloat(accuracy) || 0,
+            accuracy: precisionRecibida,
             timestamp: timestamp || new Date().toISOString(),
             recibido: new Date().toISOString(),
             deviceId: dispositivoId
         };
+        
+        // Implementar promedio de ubicaciones para mayor precisión
+        if (dispositivo.ultimaUbicacion && dispositivo.ultimaUbicacion.accuracy) {
+            const ubicacionAnterior = dispositivo.ultimaUbicacion;
+            const tiempoTranscurrido = new Date() - new Date(ubicacionAnterior.timestamp);
+            const TIEMPO_PROMEDIO_MS = 30000; // 30 segundos
+            
+            // Si la ubicación anterior es reciente y precisa, hacer promedio ponderado
+            if (tiempoTranscurrido < TIEMPO_PROMEDIO_MS && ubicacionAnterior.accuracy < UMBRAL_PRECISION_MAXIMA) {
+                const pesoNuevo = precisionRecibida < ubicacionAnterior.accuracy ? 0.7 : 0.3;
+                const pesoAnterior = 1 - pesoNuevo;
+                
+                nuevaUbicacion.lat = (nuevaUbicacion.lat * pesoNuevo) + (ubicacionAnterior.lat * pesoAnterior);
+                nuevaUbicacion.lon = (nuevaUbicacion.lon * pesoNuevo) + (ubicacionAnterior.lon * pesoAnterior);
+                nuevaUbicacion.accuracy = Math.min(precisionRecibida, ubicacionAnterior.accuracy);
+                
+                console.log(`🎯 Ubicación promediada para mayor precisión: ${nuevaUbicacion.accuracy}m`);
+            }
+        }
         
         // Actualizar ubicación del dispositivo
         dispositivo.ultimaUbicacion = nuevaUbicacion;
@@ -205,7 +241,49 @@ app.get('/api/dispositivos', (req, res) => {
     const dispositivosArray = Array.from(dispositivos.values());
     res.json({
         dispositivos: dispositivosArray,
-        total: dispositivosArray.length
+        total: dispositivosArray.length,
+        precisionThreshold: PRECISION_THRESHOLD
+    });
+});
+
+// Endpoint para configurar el umbral de precisión
+app.post('/api/precision-threshold', (req, res) => {
+    const { threshold } = req.body;
+    
+    if (!threshold || isNaN(threshold)) {
+        return res.status(400).json({ error: 'Umbral de precisión inválido' });
+    }
+    
+    const newThreshold = parseInt(threshold);
+    
+    if (newThreshold < MIN_PRECISION_THRESHOLD || newThreshold > MAX_PRECISION_THRESHOLD) {
+        return res.status(400).json({ 
+            error: `Umbral debe estar entre ${MIN_PRECISION_THRESHOLD} y ${MAX_PRECISION_THRESHOLD} metros` 
+        });
+    }
+    
+    PRECISION_THRESHOLD = newThreshold;
+    console.log(`🎯 Umbral de precisión actualizado a: ${PRECISION_THRESHOLD}m`);
+    
+    // Notificar a todos los clientes WebSocket del cambio
+    enviarATodosLosClientes({
+        tipo: 'precision_threshold_updated',
+        threshold: PRECISION_THRESHOLD
+    });
+    
+    res.json({ 
+        success: true, 
+        threshold: PRECISION_THRESHOLD,
+        message: `Umbral de precisión actualizado a ${PRECISION_THRESHOLD}m`
+    });
+});
+
+// Endpoint para obtener el umbral actual
+app.get('/api/precision-threshold', (req, res) => {
+    res.json({ 
+        threshold: PRECISION_THRESHOLD,
+        min: MIN_PRECISION_THRESHOLD,
+        max: MAX_PRECISION_THRESHOLD
     });
 });
 

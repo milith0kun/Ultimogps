@@ -391,6 +391,11 @@
                 <div class="device-controls">
                     <button id="toggleAll" class="btn btn-primary">Mostrar Todos</button>
                     <button id="centerAll" class="btn btn-secondary">Centrar Vista</button>
+                    <div class="precision-control" style="margin-top: 10px;">
+                        <label for="precisionThreshold" style="font-size: 12px; color: #666;">🎯 Umbral de Precisión:</label>
+                        <input type="range" id="precisionThreshold" min="10" max="200" value="100" step="10" style="width: 100%; margin: 5px 0;">
+                        <span id="precisionValue" style="font-size: 12px; color: #333;">100m</span>
+                    </div>
                 </div>
                 <div id="deviceList" class="device-list">
                     <!-- Lista de dispositivos se generará dinámicamente -->
@@ -542,17 +547,42 @@
                 weight: 2
             });
             
-            // Contenido del popup
+            // Determinar calidad de señal basada en precisión
+            let calidadSenal = 'Excelente';
+            let colorCalidad = '#4CAF50'; // Verde
+            let iconoCalidad = '📶';
+            
+            if (accuracy > 50) {
+                calidadSenal = 'Pobre';
+                colorCalidad = '#F44336'; // Rojo
+                iconoCalidad = '📵';
+            } else if (accuracy > 20) {
+                calidadSenal = 'Regular';
+                colorCalidad = '#FF9800'; // Naranja
+                iconoCalidad = '📶';
+            } else if (accuracy > 10) {
+                calidadSenal = 'Buena';
+                colorCalidad = '#2196F3'; // Azul
+                iconoCalidad = '📶';
+            }
+            
+            // Contenido del popup con información mejorada
             const popupContent = `
-                <div style="text-align: center;">
+                <div style="text-align: center; min-width: 200px;">
                     <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
                         <div style="width: 12px; height: 12px; background: ${dispositivo.color}; border-radius: 50%; margin-right: 8px;"></div>
                         <strong>${dispositivo.nombre}</strong>
                     </div>
-                    <small><strong>Lat:</strong> ${lat.toFixed(6)}</small><br>
-                    <small><strong>Lon:</strong> ${lon.toFixed(6)}</small><br>
-                    <small><strong>Precisión:</strong> ±${accuracy.toFixed(0)}m</small><br>
-                    <small><strong>Actualizado:</strong> ${new Date(ubicacion.timestamp).toLocaleString()}</small>
+                    <div style="background: #f5f5f5; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                        <small><strong>📍 Coordenadas:</strong></small><br>
+                        <small>Lat: ${lat.toFixed(6)}</small><br>
+                        <small>Lon: ${lon.toFixed(6)}</small>
+                    </div>
+                    <div style="background: ${colorCalidad}20; padding: 8px; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid ${colorCalidad};">
+                        <small><strong>${iconoCalidad} Precisión:</strong> ±${accuracy.toFixed(1)}m</small><br>
+                        <small><strong>Calidad:</strong> <span style="color: ${colorCalidad}; font-weight: bold;">${calidadSenal}</span></small>
+                    </div>
+                    <small><strong>🕒 Actualizado:</strong> ${new Date(ubicacion.timestamp).toLocaleString()}</small>
                 </div>
             `;
             
@@ -591,17 +621,42 @@
             circle.setLatLng(position);
             circle.setRadius(accuracy);
             
-            // Actualizar popup
+            // Determinar calidad de señal basada en precisión
+            let calidadSenal = 'Excelente';
+            let colorCalidad = '#4CAF50'; // Verde
+            let iconoCalidad = '📶';
+            
+            if (accuracy > 50) {
+                calidadSenal = 'Pobre';
+                colorCalidad = '#F44336'; // Rojo
+                iconoCalidad = '📵';
+            } else if (accuracy > 20) {
+                calidadSenal = 'Regular';
+                colorCalidad = '#FF9800'; // Naranja
+                iconoCalidad = '📶';
+            } else if (accuracy > 10) {
+                calidadSenal = 'Buena';
+                colorCalidad = '#2196F3'; // Azul
+                iconoCalidad = '📶';
+            }
+            
+            // Actualizar popup con información mejorada
             const popupContent = `
-                <div style="text-align: center;">
+                <div style="text-align: center; min-width: 200px;">
                     <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
                         <div style="width: 12px; height: 12px; background: ${dispositivo.color}; border-radius: 50%; margin-right: 8px;"></div>
                         <strong>${dispositivo.nombre}</strong>
                     </div>
-                    <small><strong>Lat:</strong> ${lat.toFixed(6)}</small><br>
-                    <small><strong>Lon:</strong> ${lon.toFixed(6)}</small><br>
-                    <small><strong>Precisión:</strong> ±${accuracy.toFixed(0)}m</small><br>
-                    <small><strong>Actualizado:</strong> ${new Date(ubicacion.timestamp).toLocaleString()}</small>
+                    <div style="background: #f5f5f5; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                        <small><strong>📍 Coordenadas:</strong></small><br>
+                        <small>Lat: ${lat.toFixed(6)}</small><br>
+                        <small>Lon: ${lon.toFixed(6)}</small>
+                    </div>
+                    <div style="background: ${colorCalidad}20; padding: 8px; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid ${colorCalidad};">
+                        <small><strong>${iconoCalidad} Precisión:</strong> ±${accuracy.toFixed(1)}m</small><br>
+                        <small><strong>Calidad:</strong> <span style="color: ${colorCalidad}; font-weight: bold;">${calidadSenal}</span></small>
+                    </div>
+                    <small><strong>🕒 Actualizado:</strong> ${new Date(ubicacion.timestamp).toLocaleString()}</small>
                 </div>
             `;
             
@@ -725,6 +780,22 @@
                             actualizarMarcadorDispositivo(dispositivo, data);
                             updateLocationInfo(data);
                             actualizarListaDispositivos();
+                        } else if (message.tipo === 'precision_threshold_updated') {
+                            // Sincronización de umbral de precisión
+                            if (message.datos && message.datos.threshold) {
+                                umbralPrecision = message.datos.threshold;
+                                const slider = document.getElementById('precisionThreshold');
+                                const valueDisplay = document.getElementById('precisionValue');
+                                
+                                if (slider && valueDisplay) {
+                                    slider.value = umbralPrecision;
+                                    valueDisplay.textContent = umbralPrecision + 'm';
+                                }
+                                
+                                // Actualizar visualización con nuevo umbral
+                                actualizarVisualizacionPorPrecision();
+                                console.log('Umbral de precisión sincronizado:', umbralPrecision + 'm');
+                            }
                         }
                         
                     } catch (error) {
@@ -838,8 +909,45 @@
             
             dispositivos.forEach((dispositivo) => {
                 const deviceItem = document.createElement('div');
+                
+                // Determinar precisión y calidad de señal
+                let accuracy = 999;
+                let signalQuality = 'Sin datos';
+                let iconoCalidadDispositivo = '❓';
+                let colorCalidadDispositivo = '#999';
+                
+                if (dispositivo.ultimaUbicacion && dispositivo.ultimaUbicacion.accuracy !== undefined) {
+                    accuracy = parseFloat(dispositivo.ultimaUbicacion.accuracy);
+                    
+                    if (accuracy <= 10) {
+                        signalQuality = 'Excelente';
+                        iconoCalidadDispositivo = '🟢';
+                        colorCalidadDispositivo = '#28a745';
+                    } else if (accuracy <= 30) {
+                        signalQuality = 'Buena';
+                        iconoCalidadDispositivo = '🟡';
+                        colorCalidadDispositivo = '#ffc107';
+                    } else if (accuracy <= 100) {
+                        signalQuality = 'Regular';
+                        iconoCalidadDispositivo = '🟠';
+                        colorCalidadDispositivo = '#fd7e14';
+                    } else {
+                        signalQuality = 'Pobre';
+                        iconoCalidadDispositivo = '🔴';
+                        colorCalidadDispositivo = '#dc3545';
+                    }
+                }
+                
+                // Determinar si cumple el umbral de precisión
+                const cumpleUmbral = accuracy <= umbralPrecision;
+                const opacity = cumpleUmbral ? 1.0 : 0.5;
+                
                 deviceItem.className = `device-item ${dispositivo.activo ? 'active' : ''}`;
                 deviceItem.style.borderLeftColor = dispositivo.color;
+                deviceItem.style.opacity = opacity;
+                if (!cumpleUmbral) {
+                    deviceItem.style.border = '1px dashed #ccc';
+                }
                 
                 const ultimaActividad = dispositivo.ultimaUbicacion ? 
                     new Date(dispositivo.ultimaUbicacion.timestamp).toLocaleTimeString() : 
@@ -848,8 +956,12 @@
                 deviceItem.innerHTML = `
                     <div class="device-color" style="background: ${dispositivo.color};"></div>
                     <div class="device-info">
-                        <div class="device-name">${dispositivo.nombre}</div>
+                        <div class="device-name">${dispositivo.nombre} <span style="color: ${colorCalidadDispositivo};">${iconoCalidadDispositivo}</span></div>
                         <div class="device-status">Última actividad: ${ultimaActividad}</div>
+                        <div class="device-status" style="color: ${colorCalidadDispositivo}; font-size: 11px;">
+                            ${signalQuality} (±${accuracy.toFixed(0)}m)
+                            ${!cumpleUmbral ? ' ⚠️ Precisión insuficiente' : ''}
+                        </div>
                     </div>
                     <div class="device-toggle ${dispositivosVisibles.has(dispositivo.id) ? 'active' : ''}" 
                          onclick="toggleDispositivo('${dispositivo.id}')"></div>
@@ -955,6 +1067,103 @@
             }
         }
         
+        // Variable global para umbral de precisión
+        let umbralPrecision = 100;
+        
+        // Configurar control de umbral de precisión
+        function configurarControlPrecision() {
+            const slider = document.getElementById('precisionThreshold');
+            const valueDisplay = document.getElementById('precisionValue');
+            
+            if (slider && valueDisplay) {
+                // Cargar umbral actual del servidor
+                cargarUmbralPrecision();
+                
+                slider.addEventListener('input', function() {
+                    umbralPrecision = parseInt(this.value);
+                    valueDisplay.textContent = umbralPrecision + 'm';
+                    
+                    // Actualizar visualización de dispositivos según nuevo umbral
+                    actualizarVisualizacionPorPrecision();
+                });
+                
+                // Enviar cambios al servidor cuando se suelte el slider
+                slider.addEventListener('change', function() {
+                    enviarUmbralAlServidor(umbralPrecision);
+                });
+            }
+        }
+        
+        // Cargar umbral de precisión del servidor
+        async function cargarUmbralPrecision() {
+            try {
+                const response = await fetch('/api/precision-threshold');
+                const data = await response.json();
+                
+                if (data.threshold) {
+                    umbralPrecision = data.threshold;
+                    const slider = document.getElementById('precisionThreshold');
+                    const valueDisplay = document.getElementById('precisionValue');
+                    
+                    if (slider && valueDisplay) {
+                        slider.value = umbralPrecision;
+                        slider.min = data.min || 10;
+                        slider.max = data.max || 500;
+                        valueDisplay.textContent = umbralPrecision + 'm';
+                    }
+                }
+            } catch (error) {
+                console.error('Error cargando umbral de precisión:', error);
+            }
+        }
+        
+        // Enviar umbral al servidor
+        async function enviarUmbralAlServidor(threshold) {
+            try {
+                const response = await fetch('/api/precision-threshold', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ threshold })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('Umbral de precisión actualizado:', data.message);
+                } else {
+                    console.error('Error actualizando umbral:', data.error);
+                }
+            } catch (error) {
+                console.error('Error enviando umbral al servidor:', error);
+            }
+        }
+        
+        // Actualizar visualización basada en umbral de precisión
+        function actualizarVisualizacionPorPrecision() {
+            dispositivos.forEach((dispositivo, deviceId) => {
+                if (dispositivo.ultimaUbicacion) {
+                    const accuracy = parseFloat(dispositivo.ultimaUbicacion.accuracy) || 999;
+                    const marker = marcadores.get(deviceId);
+                    const circle = circulos.get(deviceId);
+                    
+                    if (marker && circle) {
+                        // Cambiar opacidad basada en si cumple el umbral
+                        const opacity = accuracy <= umbralPrecision ? 1.0 : 0.3;
+                        marker.setOpacity(opacity);
+                        circle.setStyle({ fillOpacity: opacity * 0.2, opacity: opacity * 0.5 });
+                        
+                        // Actualizar popup con nueva información
+                        actualizarMarcadorDispositivo(dispositivo, dispositivo.ultimaUbicacion);
+                    }
+                }
+            });
+            
+            // Actualizar lista de dispositivos
+            actualizarListaDispositivos();
+        }
+        
         // Inicializar aplicación
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Iniciando aplicación GPS Android');
@@ -974,6 +1183,9 @@
             // Configurar event listeners para los botones
             document.getElementById('toggleAll').addEventListener('click', toggleTodosDispositivos);
             document.getElementById('centerAll').addEventListener('click', centrarEnTodos);
+            
+            // Configurar control de precisión
+            configurarControlPrecision();
         });
     </script>
 </body>
