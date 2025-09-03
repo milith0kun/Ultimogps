@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Servir archivos estÃ¡ticos
+app.use(express.static(__dirname)); // Servir archivos estáticos desde la raíz del proyecto
 
 // Variable para almacenar la Ãºltima ubicaciÃ³n en memoria
 let ultimaUbicacion = null;
@@ -163,7 +163,7 @@ app.get('/api/stats', (req, res) => {
 
 // Servir la pÃ¡gina web principal
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Manejar rutas no encontradas
@@ -177,7 +177,7 @@ app.use('*', (req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
     console.log('ðŸš€ Servidor GPS Tracking iniciado');
     console.log(`ðŸ“¡ Servidor HTTP en puerto ${PORT}`);
-    console.log(`ðŸŒ WebSocket Server activo`);
+    console.log(`ðŸŒ WebSocket Server activo en puerto ${PORT}`);
     console.log(`ðŸ”— Accede a http://localhost:${PORT} para ver el mapa`);
     console.log(`ðŸ”— Accede a http://18.188.7.21:${PORT} para acceso desde AWS EC2`);
     console.log('ðŸ“± Endpoint para Android: POST /api/ubicacion');
